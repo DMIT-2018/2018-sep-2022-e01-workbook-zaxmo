@@ -35,3 +35,4 @@ var QueensAlbums = Albums
 	.Where(a => a.Artist.Name.Contains("Queen"))
 	.Dump()
 	;
+	
