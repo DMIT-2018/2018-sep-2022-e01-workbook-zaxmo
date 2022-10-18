@@ -279,6 +279,28 @@ void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
 							
 		
 }
+
+
+public void PlaylistTrack_RemoveTracks(string playlistname, string username, List<PlaylistTrackTRX> tracklistinfo)
+{
+	
+
+	if (string.IsNullOrWhiteSpace(playlistname))
+	{
+		throw new ArgumentNullException("No playlist name submitted");
+	}
+	if (string.IsNullOrWhiteSpace(username))
+	{
+		throw new ArgumentNullException("No username submitted");
+	}
+	
+	var count = tracklistinfo.Count();
+	if (count == 0)
+	{
+		throw new ArgumentNullException("No list of tracks were submitted");
+	}
+	
+}
 #endregion
 
 
