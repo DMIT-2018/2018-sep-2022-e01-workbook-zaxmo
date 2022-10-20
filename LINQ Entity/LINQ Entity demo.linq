@@ -42,11 +42,39 @@ void Main()
 		
 		//on the web page, the post method would have already have access to the
 		//  BindProperty variables containing the input values
+		//playlistname = "hansenbtest";
+		// trackid = 756;
+
+		//call the service method to process the data
+		//PlaylistTrack_AddTrack(playlistname, username, trackid); tested
+		
+		//on the web page, the post method would have already have access to the
+		//	BindProperty variables containing the input values
 		playlistname = "hansenbtest";
-		int trackid = 793;
+		List<PlaylistTrackTRX> tracklistinfo = new List<PlaylistTrackTRX>();
+		tracklistinfo.Add(new PlaylistTrackTRX()
+			{SelectedTrack = true,
+			 TrackId =793,
+			 TrackNumber= 1,
+			 TrackInput = 0});
+		tracklistinfo.Add(new PlaylistTrackTRX()
+			{SelectedTrack = true,
+			 TrackId =543,
+			 TrackNumber= 3,
+			 TrackInput = 0});
+		tracklistinfo.Add(new PlaylistTrackTRX()
+			{SelectedTrack = true,
+			 TrackId =822,
+			 TrackNumber= 4,
+			 TrackInput = 0});
+		tracklistinfo.Add(new PlaylistTrackTRX()
+			{SelectedTrack = false,
+			 TrackId =756,
+			 TrackNumber= 2,
+			 TrackInput = 0});
 		
 		//call the service method to process the data
-		PlaylistTrack_AddTrack(playlistname, username, trackid);
+		PlaylistTrack_RemoveTracks(playlistname, username, tracklistinfo); 
 		
 		//once the service method is complete, the web page would refresh
 		playlist = PlaylistTrack_FetchPlaylist(playlistname, username);
@@ -58,7 +86,17 @@ void Main()
 	}
 	catch (ArgumentException ex)
 	{
+
 		GetInnerException(ex).Message.Dump();
+	}
+	catch (AggregateException ex)
+	{
+		//having collected a number of errors
+		//each error should be dumped to a separate line
+		foreach (var error in ex.InnerExceptions)
+		{
+			error.Message.Dump();
+		}
 	}
 	catch (Exception ex)
 	{
@@ -68,7 +106,7 @@ void Main()
 
 // You can define other methods, fields, classes and namespaces here
 
-#region CQRS Queries
+#region CQRS Queries/Command models
 public class TrackSelection
 {
     public int TrackId {get; set;}
@@ -84,6 +122,13 @@ public class PlaylistTrackInfo
     public int TrackNumber {get; set;}
     public string SongName {get; set;}
     public int Milliseconds {get; set;}
+}
+public class PlaylistTrackTRX
+{
+    public bool SelectedTrack {get; set;}
+    public int TrackId {get; set;}
+    public int TrackNumber {get; set;}
+    public int TrackInput {get; set;}
 }
 #endregion
 
@@ -204,7 +249,7 @@ void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
 		playlisttrackexists = PlaylistTracks
 								.Where(x => x.Playlist.Name.Equals(playlistname)
 										&&  x.Playlist.UserName.Equals(username)
-										)
+										&&  x.TrackId == trackid)
 								.Select(x => x)
 								.FirstOrDefault();
 		if (playlisttrackexists == null)
@@ -212,8 +257,7 @@ void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
 			//generate the next tracknumber
 			tracknumber = PlaylistTracks
 							.Where(x => x.Playlist.Name.Equals(playlistname)
-										&&  x.Playlist.UserName.Equals(username)
-										&&  x.TrackId == trackid)
+										&&  x.Playlist.UserName.Equals(username))
 							.Count();
 			tracknumber++;
 		}
@@ -235,75 +279,151 @@ void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
 	playlisttrackexists.TrackNumber = tracknumber;
 	playlisttrackexists.TrackId = trackid;
 	
-	/**********************
-	what about the second part of the primary key: PlaylistId
-	if the playlist exists then we know the id:
-	playlistexists.PlaylistId;
+	/*******************************************
+	?? what about the second part of the primary key: PlaylistId
+	   it the playlist exists then we know the id:
+	   		playlistexists.PlaylistId;
+			
+	in the situation of a NEW playlist, even though we have
+		created the playlist instance (see above) it is ONLY staged!!!
+		
+	this means that the actual sql records has NOT yet been created
+	this means that the IDENTITY value for the new playlist DOES NOT 
+		yet exists. The value on the playlist instance (playlistexists)
+		is zero.
+	thus we have a serious problem
 	
-	in the situation of a NEW playlist, even though we have created the playlist instance (see above) it is only staged
-	
-	this means that the actual sql records have not yet been created
-	this means that the identity value for the new playlist does not yet exist
-	the value on the playlist instance (playlistexists) is zero
-	
-	SOLUTION
-	it is built into EntityFramework software and is based on using the navigational property in Playlists pointing to its "child"
-	
-	staging a typical Add in the past was to reference the entity and use the entity.Add(xxxxxx)
-	_context.PlaylistTrack.Add(xxxxxx) [_context. is context instance in VS]
-	
-	if you use this statemenet, the playlistid would be 0 causing the transaction to abort
-	
-	INSTEAD: do the staging using the syntax of "parent.navigationalproperty.Add(xxxxx)
-	
-	scenario A) a new staged instance
-	scenario B) a copy of the eisting playlist instance
-	
-	*************************/
-	
-	
+	Solution
+	it is built into EntityFramwework software and is based on using
+		the navigational property in Playlists pointing to its "child"
+		
+	staging a typical Add in the past was to reference the entity
+		and use the entity.Add(xxxxxx)
+		_context.PlaylistTrack.Add(xxxxx)  [_context. is context instance in VS]
+	IF you use this statement, the playlistid would be zero (0)
+		causing your transaction to ABORT
+		
+	INSTEAD. do the staging using the syntax of "parent.navigationalproperty.Add(xxxxx)
+	playlistexists will be filled with either
+		scenario A) a new staged instance
+		scenario B) a copy of the existing playlist instance
+	*******************************************/
 	playlistexists.PlaylistTracks.Add(playlisttrackexists);
 	
-	/*****************
-	staging is complete
-	commit the work (transaction)
-	committing the work needs a .SaveChanges()
-	a transaction has only one .SaveChanges()
-	if the SaveChanges() fails them all staged work being handled by the SaveChanges()
-		is rolled back
+	/**************************************************
+	Staging is complete
+	Commit the work (transaction)
+	commiting the work needs a .SaveChanges()
+	a transaction has ONLY ONE .SaveChanges()
+	IF the SaveChanges() fails then all staged work being handled by the SaveChanges
+		is rollback.
 	
-	
-	*****************/
-	
+	*************************************************/
 	SaveChanges();
-							
-		
 }
 
-
-public void PlaylistTrack_RemoveTracks(string playlistname, string username, List<PlaylistTrackTRX> tracklistinfo)
+public void PlaylistTrack_RemoveTracks(string playlistname, string username, 
+				List<PlaylistTrackTRX> tracklistinfo)
 {
+	//local variables
+	Playlists playlistexists = null;
+	PlaylistTracks playlisttrackexists = null;
+	int tracknumber = 0;
 	
-
+	//we need a container to hold x number of exception messages
+	List<Exception> errorlist = new List<Exception>;
+	
+	
 	if (string.IsNullOrWhiteSpace(playlistname))
 	{
-		throw new ArgumentNullException("No playlist name submitted");
+		errorlist.Add( new Exception("No playlist name submitted"));
 	}
 	if (string.IsNullOrWhiteSpace(username))
 	{
-		throw new ArgumentNullException("No username submitted");
+		errorlist.Add( new Exception("No user name submitted"));
 	}
 	
 	var count = tracklistinfo.Count();
 	if (count == 0)
 	{
-		throw new ArgumentNullException("No list of tracks were submitted");
+		errorlist.Add( new Exception("No list of tracks were submitted"));
 	}
 	
+	playlistexists = Playlists
+						.Where(x => x.Name.Equals(playlistname)
+								&& x.UserName.Equals(username))
+						.Select(x => x)
+						.FirstOrDefault();
+	if (playlistexists == null)
+	{
+		errorlist.Add( new Exception($"Play list {playlistname} does not exist for this user."));
+	}
+	else
+	{
+		//obtain the tracks to keep
+		//the SelectedTrack is a boolean field
+		// false: keep
+		// true: remove
+		//crate a query to extract the "keep" tracks from the incoming data
+		IEnumerable<PlaylistTrackTRX> keeplist = tracklistinfo
+												.Where(x => !x.SelectedTrack)
+												.OrderBy(x => x.TrackNumber);
+		
+		//obtain the tracks to remove
+		IEnumerable<PlaylistTrackTRX> removelist = tracklistinfo
+													.Where(x => x.SelectedTrack);
+													
+		foreach(PlaylistTrackTRX item in removelist)
+		{
+			playlisttrackexists = PlaylistTracks
+									.Where(x => x.Playlist.Name.Equals(playlistname)
+									&& x.Playlist.UserName.Equals(username)
+									&& x.TrackId == item.TrackId)
+								.FirstOrDefault();
+			if (playlisttrackexists != null)
+			{
+				PlaylistTracks.Remove(playlisttrackexists);
+			}
+		}
+		
+		tracknumber = 1;
+		foreach(PlaylistTrackTRX item in keeplist)
+		{
+			playlisttrackexists = PlaylistTracks
+									.Where(x => x.Playlist.Name.Equals(playlistname)
+									&& x.Playlist.UserName.Equals(username)
+									&& x.TrackId == item.TrackId)
+								.FirstOrDefault();
+			if (playlisttrackexists != null)
+			{
+				playlisttrackexists.TrackNumber = tracknumber;
+				PlaylistTracks.Update(playlisttrackexists);
+				
+				//this livrary is not directly accessable by linqpad
+				//EntityEntry<PlaylistTracks> updating = _context.Entry(playlisttrackexists);
+				//updating.State = Microsoft.EntityFrameworkCore.EntityState.Modify;
+				
+				//get ready for next track
+				tracknumber++;
+			}
+			else
+			{
+				var songname = Tracks
+							.Where(x => x.TrackId == item.TrackId)
+							.Select( x => x.Name)
+							.SingleOrDefault();
+				throw new Exception($"The track ({songname}) is no longer on file. Please Remove");
+			}
+		}
+		
+		if (errorlist.Count > 0)
+		{
+			throw new AggregateException("unable to remove tracks");
+		}
+		
+		//all work has been staged
+		SaveChanges();
+	}
 }
+				
 #endregion
-
-
-
-
-
