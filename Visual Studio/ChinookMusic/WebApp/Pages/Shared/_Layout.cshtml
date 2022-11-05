@@ -10,6 +10,7 @@
 
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/WebApp.styles.css" asp-append-version="true" />
+    @RenderSection("CustomCSS", required: false)
 </head>
 <body>
     <header>
@@ -37,6 +38,9 @@
                     <ul>
                         <li>
                             <a asp-area="" asp-page="/SamplePages/Index">Sample Pages Home</a>
+                        </li>
+                        <li>
+                            <a asp-area="" asp-page="/SamplePages/Controls">Sample Form Controls</a>
                         </li>
                     </ul>
                 </li>
