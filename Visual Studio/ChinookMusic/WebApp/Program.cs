@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WebApp.Data;
@@ -9,26 +10,32 @@ using ChinookSystem;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-//supplied database connection due to the fact that we reated this web app to use idividual accounts
+
+//supplied database connection due to the fact that
+//  we created this web app to use Individual Accounts
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-//add another getconnectionstring to reference our database connectionstring
-
-var connectionStringChinook = builder.Configuration.GetConnectionString("ChinookDB");
+//add another GetConnectionString to reference our database
+//  connectionString
+var connectionStringChinook = 
+    builder.Configuration.GetConnectionString("ChinookDB");
 
 //given for the db connection to Defaultconnection string
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-//code the dbconnection to the application db context for Chinook
-//the implementation of the connect AND registration of the Chinook system services will be done in the ChinookSystem class library
-//to accomplish this task we will be using an extension method
-//the extension method will extend the IServiceCollection class
-//the extension method requires a parameter options.UseSqlServer(xxx) where xxx is the connectionstring variable
+//code the dbconnection to the application DB context for Chinook
+//the implementation of the connect AND registration of the
+//  ChinookSystem services will be done in the ChinookSystem
+//  class library
+//so to accomplish this tak, we will be using an "extension method"
+//the extension method will extend the IServiceCollection Class
+//the extension method requires a parameter options.UseSqlServer(XXX)
+//  where xxx is the connection string variable
+builder.Services.ChinookSystemBackendDependencies(options =>
+            options.UseSqlServer(connectionStringChinook));
 
 
-builder.Services.ChinookSystemBackendDependencies(options => options.UseSqlServer(connectionStringChinook));
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 

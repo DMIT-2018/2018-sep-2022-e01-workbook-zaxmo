@@ -16,7 +16,6 @@ namespace ChinookSystem.BLL
 {
     public class PlaylistTrackServices
     {
-
         #region Constructor for Context Dependency
         private readonly ChinookContext _context;
 
@@ -49,141 +48,136 @@ namespace ChinookSystem.BLL
                                         })
                                         .OrderBy(x => x.TrackNumber);
             return results.ToList();
-            #endregion
+        }
 
-            #region Command TRX methods
+        #endregion
 
-            void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
+        #region Command TRX methods
+
+        void PlaylistTrack_AddTrack(string playlistname, string username, int trackid)
+        {
+            //locals
+            Track trackexists = null;
+            Playlist playlistexists = null;
+            PlaylistTrack playlisttrackexists = null;
+            int tracknumber = 0;
+
+            if (string.IsNullOrWhiteSpace(playlistname))
             {
-                //locals
-                Track trackexists = null;
-                Playlist playlistexists = null;
-                PlaylistTrack playlisttrackexists = null;
-                int tracknumber = 0;
+                throw new ArgumentNullException("No playlist name submitted");
+            }
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                throw new ArgumentNullException("No user name submitted");
+            }
 
-                if (string.IsNullOrWhiteSpace(playlistname))
-                {
-                    throw new ArgumentNullException("No playlist name submitted");
-                }
-                if (string.IsNullOrWhiteSpace(username))
-                {
-                    throw new ArgumentNullException("No user name submitted");
-                }
+            trackexists = _context.Tracks
+                            .Where(x => x.TrackId == trackid)
+                            .Select(x => x)
+                            .FirstOrDefault();
+            if (trackexists == null)
+            {
+                throw new ArgumentException("Selected track no longer on file. Refresh track table.");
+            }
 
-                trackexists = _context.Tracks
-                                .Where(x => x.TrackId == trackid)
+            //B/R  playlist names must be unique within a user
+            playlistexists = _context.Playlists
+                                .Where(x => x.Name.Equals(playlistname)
+                                        && x.UserName.Equals(username))
                                 .Select(x => x)
                                 .FirstOrDefault();
-                if (trackexists == null)
+            if (playlistexists == null)
+            {
+                playlistexists = new Playlist()
                 {
-                    throw new ArgumentException("Selected track no longer on file. Refresh track table.");
-                }
-
-                //B/R  playlist names must be unique within a user
-                playlistexists = _context.Playlists
-                                    .Where(x => x.Name.Equals(playlistname)
-                                            && x.UserName.Equals(username))
-                                    .Select(x => x)
-                                    .FirstOrDefault();
-                if (playlistexists == null)
+                    Name = playlistname,
+                    UserName = username
+                };
+                //staging the new playlist record
+                _context.Playlists.Add(playlistexists);
+                tracknumber = 1;
+            }
+            else
+            {
+                // B/R a track may only exist once on a playlist
+                playlisttrackexists = _context.PlaylistTracks
+                                        .Where(x => x.Playlist.Name.Equals(playlistname)
+                                                &&  x.Playlist.UserName.Equals(username)
+                                                &&  x.TrackId == trackid)
+                                        .Select(x => x)
+                                        .FirstOrDefault();
+                if (playlisttrackexists == null)
                 {
-                    playlistexists = new Playlist()
-                    {
-                        Name = playlistname,
-                        UserName = username
-                    };
-                    //staging the new playlist record
-                    _context.Playlists.Add(playlistexists);
-                    tracknumber = 1;
+                    //generate the next tracknumber
+                    tracknumber = _context.PlaylistTracks
+                                    .Where(x => x.Playlist.Name.Equals(playlistname)
+                                                &&  x.Playlist.UserName.Equals(username))
+                                    .Count();
+                    tracknumber++;
                 }
                 else
                 {
-                    // B/R a track may only exist once on a playlist
-                    playlisttrackexists = _context.PlaylistTracks
-                                            .Where(x => x.Playlist.Name.Equals(playlistname)
-                                                    && x.Playlist.UserName.Equals(username)
-                                                    && x.TrackId == trackid)
-                                            .Select(x => x)
-                                            .FirstOrDefault();
-                    if (playlisttrackexists == null)
-                    {
-                        //generate the next tracknumber
-                        tracknumber = _context.PlaylistTracks
-                                        .Where(x => x.Playlist.Name.Equals(playlistname)
-                                                    && x.Playlist.UserName.Equals(username))
-                                        .Count();
-                        tracknumber++;
-                    }
-                    else
-                    {
-                        var songname = _context.Tracks
-                                        .Where(x => x.TrackId == trackid)
-                                        .Select(x => x.Name)
-                                        .SingleOrDefault();
-                        throw new Exception($"Selected track ({songname}) already exists on the playlist.");
-                    }
-
+                    var songname = _context.Tracks
+                                    .Where(x => x.TrackId == trackid)
+                                    .Select(x => x.Name)
+                                    .SingleOrDefault();
+                    throw new Exception($"Selected track ({songname}) already exists on the playlist.");
                 }
 
-                //processing to stage the new track to the playlist
-                playlisttrackexists = new PlaylistTrack();
-
-                //load the data to the new instance of playlist track
-                playlisttrackexists.TrackNumber = tracknumber;
-                playlisttrackexists.TrackId = trackid;
-
-                /*******************************************
-                ?? what about the second part of the primary key: PlaylistId
-                   it the playlist exists then we know the id:
-                        playlistexists.PlaylistId;
-
-                in the situation of a NEW playlist, even though we have
-                    created the playlist instance (see above) it is ONLY staged!!!
-
-                this means that the actual sql records has NOT yet been created
-                this means that the IDENTITY value for the new playlist DOES NOT 
-                    yet exists. The value on the playlist instance (playlistexists)
-                    is zero.
-                thus we have a serious problem
-
-                Solution
-                it is built into EntityFramwework software and is based on using
-                    the navigational property in Playlists pointing to its "child"
-
-                staging a typical Add in the past was to reference the entity
-                    and use the entity.Add(xxxxxx)
-                    _context.PlaylistTrack.Add(xxxxx)  [_context. is context instance in VS]
-                IF you use this statement, the playlistid would be zero (0)
-                    causing your transaction to ABORT
-
-                INSTEAD. do the staging using the syntax of "parent.navigationalproperty.Add(xxxxx)
-                playlistexists will be filled with either
-                    scenario A) a new staged instance
-                    scenario B) a copy of the existing playlist instance
-                *******************************************/
-                playlistexists.PlaylistTracks.Add(playlisttrackexists);
-
-                /**************************************************
-                Staging is complete
-                Commit the work (transaction)
-                commiting the work needs a .SaveChanges()
-                a transaction has ONLY ONE .SaveChanges()
-                IF the SaveChanges() fails then all staged work being handled by the SaveChanges
-                    is rollback.
-
-                *************************************************/
-                _context.SaveChanges();
             }
 
+            //processing to stage the new track to the playlist
+            playlisttrackexists = new PlaylistTrack();
 
+            //load the data to the new instance of playlist track
+            playlisttrackexists.TrackNumber = tracknumber;
+            playlisttrackexists.TrackId = trackid;
 
-            
+            /*******************************************
+            ?? what about the second part of the primary key: PlaylistId
+               it the playlist exists then we know the id:
+                    playlistexists.PlaylistId;
 
-            
+            in the situation of a NEW playlist, even though we have
+                created the playlist instance (see above) it is ONLY staged!!!
+
+            this means that the actual sql records has NOT yet been created
+            this means that the IDENTITY value for the new playlist DOES NOT 
+                yet exists. The value on the playlist instance (playlistexists)
+                is zero.
+            thus we have a serious problem
+
+            Solution
+            it is built into EntityFramwework software and is based on using
+                the navigational property in Playlists pointing to its "child"
+
+            staging a typical Add in the past was to reference the entity
+                and use the entity.Add(xxxxxx)
+                _context.PlaylistTrack.Add(xxxxx)  [_context. is context instance in VS]
+            IF you use this statement, the playlistid would be zero (0)
+                causing your transaction to ABORT
+
+            INSTEAD. do the staging using the syntax of "parent.navigationalproperty.Add(xxxxx)
+            playlistexists will be filled with either
+                scenario A) a new staged instance
+                scenario B) a copy of the existing playlist instance
+            *******************************************/
+            playlistexists.PlaylistTracks.Add(playlisttrackexists);
+
+            /**************************************************
+            Staging is complete
+            Commit the work (transaction)
+            commiting the work needs a .SaveChanges()
+            a transaction has ONLY ONE .SaveChanges()
+            IF the SaveChanges() fails then all staged work being handled by the SaveChanges
+                is rollback.
+
+            *************************************************/
+            _context.SaveChanges();
         }
 
         public void PlaylistTrack_RemoveTracks(string playlistname, string username,
-                List<PlaylistTrackTRX> tracklistinfo)
+                        List<PlaylistTrackTRX> tracklistinfo)
         {
             //local variables
             Playlist playlistexists = null;
@@ -244,7 +238,7 @@ namespace ChinookSystem.BLL
                     }
                 }
 
-                tracknumber = 1;
+                tracknumber= 1;
                 foreach (PlaylistTrackTRX item in keeplist)
                 {
                     playlisttrackexists = _context.PlaylistTracks
@@ -288,7 +282,7 @@ namespace ChinookSystem.BLL
         }
 
         public void PlaylistTrack_MoveTracks(string playlistname, string username,
-                            List<PlaylistTrackTRX> tracklistinfo)
+                        List<PlaylistTrackTRX> tracklistinfo)
         {
             //local variables
             Playlist playlistexists = null;
@@ -372,14 +366,14 @@ namespace ChinookSystem.BLL
                                     .Where(x => x.TrackId == tracklistinfo[i + 1].TrackId)
                                     .Select(x => x.Name)
                                     .SingleOrDefault();
-                    if (tracklistinfo[i].TrackInput == tracklistinfo[i + 1].TrackInput)
+                    if (tracklistinfo[i].TrackInput == tracklistinfo[i+1].TrackInput)
                     {
                         errorlist.Add(new Exception($"{songname1} and {songname2} have the same re-sequence value. Re-sequence numbers must be unique"));
                     }
                 }
 
 
-                tracknumber = 1;
+                tracknumber= 1;
                 foreach (PlaylistTrackTRX item in tracklistinfo)
                 {
                     playlisttrackexists = _context.PlaylistTracks
@@ -423,5 +417,6 @@ namespace ChinookSystem.BLL
         }
 
         #endregion
+
     }
 }

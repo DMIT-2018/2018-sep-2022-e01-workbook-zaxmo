@@ -1,4 +1,5 @@
-﻿using System;
+﻿#nullable disable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +14,7 @@ namespace ChinookSystem.BLL
 {
     public class TrackServices
     {
+
         #region Constructor for Context Dependency
         private readonly ChinookContext _context;
 
@@ -23,7 +25,8 @@ namespace ChinookSystem.BLL
         #endregion
 
         #region Queries
-        public List<TrackSelection> Track_FetchTracksBy(string searcharg, string searchby)
+        public List<TrackSelection> Track_FetchTracksBy(string searcharg, 
+            string searchby, int pagenumber, int pagesize, out int totalcount)
         {
             if (string.IsNullOrWhiteSpace(searcharg))
             {
@@ -46,10 +49,14 @@ namespace ChinookSystem.BLL
                                             ArtistName = x.Album.Artist.Name,
                                             Milliseconds = x.Milliseconds,
                                             Price = x.UnitPrice
-                                        });
-            return results.ToList();
-            #endregion
+                                        })
+                                        .OrderBy(x => x.SongName);
+            totalcount = results.Count();
+            int rowsskipped = (pagenumber - 1) * pagesize;
 
+            return results.Skip(rowsskipped).Take(pagesize).ToList();
         }
+
+        #endregion
     }
 }
