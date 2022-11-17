@@ -89,7 +89,7 @@
                                             asp-for="addtrackid">
                                         <button type="submit" title="Add this Track"
                                             asp-page-handler="AddTrack">
-                                        <i class="las la-plus"></i>
+                                         <i class="las la-plus"></i>
                                         </button>
                                     </form>
                                 </td>
@@ -178,7 +178,51 @@
                         </thead>
 
                         <tbody>
-                           @* code to demo CQRS for a table display*@
+                           @* code to demo CQRS for a table display
+
+                           a) create an incoming control (hidden) that will act as an "unique index identifier" for each instance that will
+                            be created
+
+                           <input type="hidden" name="commandmodelpropertyname.Index"
+                                value="@instanceitem.uniqueidentifyingproperty">
+
+                            <input type="hidden" name="cplaylistinfo.Index"
+                                value="@item.TrackId">
+
+                           b) for the display of the table
+                            on each property of the row instance, use the value of your unique index indetifier as an [index] attached 
+                            to the name of the field
+                           
+                           <input type="text" name="cplaylistinfo[@item.TrackId.].propertyname value="@trackinput">
+
+                           ALL incoming data that velongs to the same [index] will be collected into the SAME instance row and placed into
+                            your command model List<T>
+
+                           NOTE: using this technique of name/value pair REPLACES the asp-for parameter
+                           
+                           *@
+                           @foreach(var item in Model.cplaylistInfo)
+                           {
+                               <tr>
+                                   <td>
+                                        <input type="hidden" name="cplaylistinfo.Index" value="@item.TrackId">
+                                        <input type="hidden" name="cplaylistinfo[@item.TrackId].TrackId" value="@item.TrackId">
+                                        <input type="checkbox" name="cplaylistinfo[@item.TrackId].SelectedTrack" value="true">
+                                   </td>
+                                   <td>
+                                        <input type="hidden" name="cplaylistinfo[@item.TrackId].TrackNumber" value="@item.TrackNumber">
+                                        @item.TrackNumber
+                                   </td>
+                                   <td>
+                                       @item.SongName
+                                   </td>
+                                   <td>
+                                       @TimeSpan.FromMilliseconds(item.Milliseconds).ToString(@"mm\:ss")
+                                   </td>
+                                   <input type="text" name="cplaylistinfo[@item.TrackId].TrackInput">
+                               </tr>
+                           }
+
                         </tbody>
                     </table>
                 }
