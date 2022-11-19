@@ -180,37 +180,62 @@
                         <tbody>
                            @* code to demo CQRS for a table display
 
-                           a) create an incoming control (hidden) that will act as an "unique index identifier" for each instance that will
-                            be created
+                           a) createe an incoming control (hidden) that will act as an
+                                "unique index identifier" for each instance that will be created.
 
-                           <input type="hidden" name="commandmodelpropertyname.Index"
-                                value="@instanceitem.uniqueidentifyingproperty">
+                                <input type="hidden" name="commandmodelpropertyname.Index"
+                                        value="@intanceitem.uniqueidentityproperty">
 
-                            <input type="hidden" name="cplaylistinfo.Index"
+                                <input type="hidden" name="cplaylistinfo.Index"
                                 value="@item.TrackId">
 
-                           b) for the display of the table
-                            on each property of the row instance, use the value of your unique index indetifier as an [index] attached 
-                            to the name of the field
-                           
-                           <input type="text" name="cplaylistinfo[@item.TrackId.].propertyname value="@trackinput">
+                            b)for the display of the table 
+                                on each property of the row instance, use the value of your unique index
+                                    indentifier as an "[index]" attach to the name of the field
 
-                           ALL incoming data that velongs to the same [index] will be collected into the SAME instance row and placed into
-                            your command model List<T>
+                                <input type="text"
+                                        name-"cplaylistinfo[@item.TrackId].propertyname"
+                                        value="@trackinput">
+                                
+                              ALL incoming data that belons to the smae"[ind]" will be collected 
+                              into the SAME instance row and placed into your command model List<T>
 
-                           NOTE: using this technique of name/value pair REPLACES the asp-for parameter
-                           
+                              NOTE: using this technique of name/value pair REEPLACES the asp-for parameter
                            *@
-                           @foreach(var item in Model.cplaylistInfo)
+                           @foreach(var item in Model.qplaylistInfo)
                            {
-                               <tr>
+                                @*
+                                   retain entered values non-query model fields (from the command collection)
+                                        to assist with error messages
+                                   setup local variables to hold the command data values
+                                   move any existing command collection dta iinto the appropraite values
+                                   NOTE: WARNING!!! you MUST have an instance of your command collection (List<T>)
+                                        to sikve this, add a new() to the declaration of your command collection
+                                   this will ensure a command data collection instance exists even if empty
+                               *@
+                                bool selectedtrack = false;
+                                string? trackinput = null;
+                                var song = Model.cplaylistInfo.SingleOrDefault(x => x.TrackId == item.TrackId);
+                                if (song != null)
+                                {
+                                    selectedtrack = song.SelectedTrack;
+                                    trackinput = song.TrackInput.ToString();
+                                }
+                                <tr>
                                    <td>
-                                        <input type="hidden" name="cplaylistinfo.Index" value="@item.TrackId">
-                                        <input type="hidden" name="cplaylistinfo[@item.TrackId].TrackId" value="@item.TrackId">
-                                        <input type="checkbox" name="cplaylistinfo[@item.TrackId].SelectedTrack" value="true">
+                                        <input type="hidden" name="cplaylistinfo.Index"
+                                                        value="@item.TrackId">
+                                        <input type="hidden"
+                                            name="cplaylistinfo[@item.TrackId].TrackId"
+                                            value="@item.TrackId">
+                                        <input type="checkbox" checked="@selectedtrack"
+                                             name="cplaylistinfo[@item.TrackId].SelectedTrack"
+                                             value="true">
                                    </td>
                                    <td>
-                                        <input type="hidden" name="cplaylistinfo[@item.TrackId].TrackNumber" value="@item.TrackNumber">
+                                        <input type="hidden"
+                                               name="cplaylistinfo[@item.TrackId].TrackNumber"
+                                               value="@item.TrackNumber">
                                         @item.TrackNumber
                                    </td>
                                    <td>
@@ -219,10 +244,13 @@
                                    <td>
                                        @TimeSpan.FromMilliseconds(item.Milliseconds).ToString(@"mm\:ss")
                                    </td>
-                                   <input type="text" name="cplaylistinfo[@item.TrackId].TrackInput">
+                                   <td>
+                                   <input type="text" class="smallbox"
+                                        name="cplaylistinfo[@item.TrackId].TrackInput"
+                                   value="@trackinput">
+                                      </td> 
                                </tr>
                            }
-
                         </tbody>
                     </table>
                 }
